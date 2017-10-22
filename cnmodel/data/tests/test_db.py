@@ -36,6 +36,26 @@ data.add_table_data('test_data', row_key='param', col_key='col', data=table,
                     extra='test_kwd')
 
 
+table2 = u"""
+
+Test table with compound row keys
+
+-------------------------------------------------------------------------------
+               col1         col2           col3
+param1.sub1    15±6.5       2.2±1.5        0.87±0.23
+param1.sub2    0            2              4
+param2.sub1    3            5              0.87±0.23
+param3.sub1    3.4                         7
+param4.sub2    1
+-------------------------------------------------------------------------------
+
+"""
+
+data.add_table_data('test_data', row_key='param.subparam', col_key='col',
+                    data=table2, extra='test_kwd2')
+
+
+
 def test_db():
     with pytest.raises(TypeError):
         # raise exception if unicode is given in ono-unicode string
@@ -58,3 +78,7 @@ def test_db():
     
     s = data.get_source('test_data', param='param2', col='col2', extra='test_kwd')
     assert s is None
+
+    assert data.get('test_data', param='param1', subparam='sub1', col='col1', extra='test_kwd2') == (15, 6.5)
+    assert data.get('test_data', param='param1', subparam='sub2', col='col1', extra='test_kwd2') == 0
+    

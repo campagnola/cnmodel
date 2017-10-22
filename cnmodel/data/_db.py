@@ -93,7 +93,21 @@ def add_table_data(name, row_key, col_key, data, **kwds):
     [3] missing because.
     '''
     
-    
+    Parameters
+    ----------
+    name : str
+        The name of the data table to store
+    row_key : str
+        The name of the ``get()`` argument to use when specifying a row. This
+        may be a compound key by separating names with a "."
+    col_key : str
+        The name of the ``get()`` argument to use when specifying a column.
+    data : str
+        The text of the complete table to insert
+    kwds : 
+        Extra keyword arguments become required arguments to ``get()`` when 
+        retrieving data from this table.
+        
     """
     if isinstance(data, str) and '\xc2' in data:
         raise TypeError('Data table appears to contain unicode characters but'
@@ -186,10 +200,7 @@ def add_table_data(name, row_key, col_key, data, **kwds):
                         try:
                             p = float(p)
                         except ValueError:
-                            try:
-                                 p = str(p.strip())  # allow strings to identify mechanisms also
-                            except ValueError:
-                                raise ValueError("Table cell (%d, %d) value has bad format: '%s'" % (i, j, val))
+                            p = str(p.strip())  # allow strings to identify mechanisms also
                     vals.append(p)
                 if len(vals) == 1:
                     val = vals[0]
@@ -208,9 +219,14 @@ def add_table_data(name, row_key, col_key, data, **kwds):
     #print col_names
     #print row_names
     #print cells
+    row_keys = row_key.split('.')
     for i,row in enumerate(row_names):
         for j,col in enumerate(col_names):
-            kwds[row_key] = row
+            row_vals = row.split('.')
+            if len(row_vals) != len(row_keys):
+                raise ValueError('Row "%s" does not match row key format "%s"' % (row, row_key))
+            for k,v in zip(row_keys, row_vals):
+                kwds[k] = v
             kwds[col_key] = col
             setval(cells[i][j], name, **kwds)
 
