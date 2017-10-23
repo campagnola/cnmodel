@@ -1,8 +1,115 @@
 # -*- encoding: utf-8 -*-
 from ._db import add_table_data
 
-add_table_data('sgc_synapse', row_key='field', col_key='post_type', 
+add_table_data('synapse_properties', row_key='property.pre_type', col_key='post_type', 
                species='mouse', data=u"""
+
+------------------------------------------------------------------------------------------------------
+                       bushy      tstellate    dstellate    octopus      pyramidal     tuberculoventral
+amp.sgc                
+amp.bushy              
+amp.tstellate          
+amp.dstellate          
+amp.octopus            
+amp.pyramidal          
+amp.tuberculoventral
+
+tau1.sgc                
+tau1.bushy              
+tau1.tstellate          
+tau1.dstellate          
+tau1.octopus            
+tau1.pyramidal          
+tau1.tuberculoventral
+
+tau2.sgc                
+tau2.bushy              
+tau2.tstellate          
+tau2.dstellate          
+tau2.octopus            
+tau2.pyramidal          
+tau2.tuberculoventral   
+------------------------------------------------------------------------------------------------------
+
+""")
+
+
+
+add_table_data('synapse_properties', row_key='pre_type', col_key='post_type', 
+               species='mouse', field='receptor_type', data=u"""
+
+Biophysical postsynaptic receptor types used in "multisite" synapse mode:
+
+* glu: AMPA and NMDA receptors 
+* glyslow: uses Gly6S
+* glyfast: uses GLYaPL
+
+------------------------------------------------------------------------------------------------------
+                   bushy      tstellate    dstellate    octopus      pyramidal     tuberculoventral
+sgc                glu        glu          glu          glu          glu           glu
+bushy              
+tstellate          glu        glu          glu
+dstellate          glyslow    glyfast      glyfast      
+octopus            
+pyramidal                                                                          glu
+tuberculoventral   glyslow    glyfast      glyfast
+------------------------------------------------------------------------------------------------------
+
+""")
+
+
+add_table_data('synapse_properties', row_key='pre_type.field', 
+               col_key='post_type', species='mouse', data=u"""
+
+Properties of multisite vesicle release mechanisms.
+
+n_rsites is the number of release sites per SGC terminal.
+
+-----------------------------------------------------------------------------------------------------------------------------------
+                           bushy             tstellate          dstellate         octopus         pyramidal      tuberculoventral
+             
+sgc.Pr                     1.000 [11]        1.000 [11]         1.000 [11]        1.000 [11]      1.000 [8]      1.000 [8]
+sgc.n_rsites               100 [5]           4 [6]              1 [4]             1 [4]           2 [8]          2 [8]
+
+dstellate.Pr
+dstellate.n_rsites         10                5                  5                 5               5              5
+
+tstellate.Pr
+tstellate.n_rsites
+
+tuberculoventral.Pr
+tuberculoventral.n_rsites  10                5                  5                                                2
+
+-----------------------------------------------------------------------------------------------------------------------------------
+
+[4] Assumption based on mini size and lack of discernable EPSC step (guess).
+    Should be verified.
+
+[5] Oleskevich & Walmsley ~2002, Wang & Manis 2005. Units are nS
+
+[6] A value of 45 would be chosen to satisfy the CV of EPSC amplitude determined in [9].
+    However, those measures are for simultaneous stimulation of multiple AN fibers.
+    A value of 4 is included here to correspond to measures in Cao and Oertel (2010)
+    (see note [2])
+
+[8] Thin air.  These are for testing the software, not necessarily for performing
+    real simulations.  Note: Pyramidal cell strength has been reduced 
+    because of large convergence and high input resistance of the reference cell model.
+
+[11]  Pr is the initial release probability. The value can be computed by
+      setting Pr to 1 in this file, and running the cnmodel test_synapses.py
+      with the appropriate presynaptic source and postsynaptic target,
+      once all other parameters are set. The Pr is used to rescale
+      the AMPAR_gmax so that the total current matches the data in 
+      AMPA_gmax in the table (on average).
+
+""")
+
+
+add_table_data('synapse_properties', pre_type='sgc', row_key='field', 
+               col_key='post_type', species='mouse', data=u"""
+
+Properties of biophysical release and receptor mechanisms for SGC synapses.
 
 AMPA_gmax and NMDA_gmax are the estimated average peak conductances (in nS) 
 resulting from an action potential in a single auditory nerve terminal, under 
@@ -23,8 +130,6 @@ AMPAR_gmax   4.6516398 [10]    4.632848  [10]     1.7587450 [10]    16.975147 [1
 NMDA_gmax    10.8±4.6 [1]      2.4±1.6 [2]        0.552±0.322 [7]   0.17±0.046 [3]  0.8±0.66 [8]   2.4±1.6 [8]
 NMDAR_gmax   0.4531933 [10]    1.2127097 [10]     0.9960820 [10]    0.6562702 [10]  0.4 [8]        1.2127097 [8]
 EPSC_cv      0.12 [8]          0.499759 [9]       0.886406 [9]      1.393382 [9]    0.499 [8]      0.499 [8]
-Pr           1.000 [11]        1.000 [11]         1.000 [11]        1.000 [11]      1.000 [8]      1.000 [8]
-n_rsites     100 [5]           4 [6]              1 [4]             1 [4]           2 [8]          2 [8]
 weight       0.027 [12]        0.006 [12]         0.00064 [12]      0.0011 [12]     0.0023 [12]    0.0029 [12]
 -----------------------------------------------------------------------------------------------------------------------------------
 
@@ -53,16 +158,6 @@ weight       0.027 [12]        0.006 [12]         0.00064 [12]      0.0011 [12] 
        NMDA_gmax = 0.87±0.23 nS * 0.2 = 0.17±0.046 nS
     Age>p17, Temperature=33C, [Mg2+]=1.3mM, [Ca2+]=2.4mM
     Units are nS
-
-[4] Assumption based on mini size and lack of discernable EPSC step (guess).
-    Should be verified.
-
-[5] Oleskevich & Walmsley ~2002, Wang & Manis 2005. Units are nS
-
-[6] A value of 45 would be chosen to satisfy the CV of EPSC amplitude determined in [9].
-    However, those measures are for simultaneous stimulation of multiple AN fibers.
-    A value of 4 is included here to correspond to measures in Cao and Oertel (2010)
-    (see note [2])
 
 [7] (Xie and Manis, Frontiers in Neural Circuits, 2017):
     Measurements from CBA/CaJ mouse "radiate" multipolar cells in the AVCN.
@@ -107,13 +202,6 @@ weight       0.027 [12]        0.006 [12]         0.00064 [12]      0.0011 [12] 
       numerically computed (and not analytically tractable without
       additional knowledge of the ligand time course), a numerical solution
       is required.
-
-[11]  Pr is the initial release probability. The value can be computed by
-      setting Pr to 1 in this file, and running the cnmodel test_synapses.py
-      with the appropriate presynaptic source and postsynaptic target,
-      once all other parameters are set. The Pr is used to rescale
-      the AMPAR_gmax so that the total current matches the data in 
-      AMPA_gmax in the table (on average).
 
 [12]  weight is the weight to use in a netcon object (NEURON) for "simple"
       synapses based on the exp2syn mechanism. These are ~ AMPAR_gmax * 

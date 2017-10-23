@@ -35,6 +35,7 @@ class Cell(object):
             'internode',
             'initialsegment', 'axonnode', 'axon', 'unmyelinatedaxon', 'myelinatedaxon', 'hillock']:
             self.all_sections[k] = []  # initialize to an empty list
+        self.spike_source = None  # used to manually set spike times in terminals from this cell
         self.species = 'mouse'
         self.status = {}  # dictionary of parameters used to instantiate the cell.
         # Record synaptic inputs and projections
@@ -317,46 +318,129 @@ class Cell(object):
         print('outputs: ', self.outputs)
         print('inputs: ', self.inputs)
     
-    def make_terminal(self, post_cell, **kwds):
+    def make_terminal(self, post_cell, term_type, **kwds):
         """
         Create a synaptic terminal release mechanism suitable for output
-        from this cell to post_sec
-        This routine is a placeholder and should be replace in the specific
-        cell class with code that performs the required actions for that class.
+        from this cell to post_cell.
         
         Parameters
         ----------
-        post_cell : the target terminal cell (required)
-        
+        post_cell : Cell
+            The postsynaptic cell that will receive input from the Terminal
+            returned by this method
+        term_type : 'simple' or 'multisite'
+            The type of Terminal to create. 'Simple' terminals merely detect a
+            presynaptic action potential and relay the signal to the postsynaptic
+            receptor mechanisms. 'Multisite' terminals implement multiple active
+            zones with stochastic vesicle release.
         \**kwds : parameters passed to the terminal
         
         """
-        raise NotImplementedError("Cannot make Terminal connecting %s => %s" % 
-                                  (self.__class__.__name__, 
-                                   post_cell.__class__.__name__))
+        pre_type = self.type
+        post_type = post_cell.type
+        data_keys = {'sepcies': self.species, 'pre_type': terminal.cell.type, 'post_type': post_type}
+        
+        if term_type == 'simple':
+            return synapses.SimpleTerminal(self.soma, post_cell, spike_source=self.spike_source, **kwds)
 
-    def make_psd(self, terminal, **kwds):
+        elif term_type == 'multisite':
+            try:
+                n_rsites = data.get('synapse_properties', field='n_rsites', **data_keys)
+                assert n_rsites is not None
+            except:
+                raise NotImplementedError("Multisite synapse not implemented for connection %s => %s" %
+                                        (pre_type, post_type))
+            delay = 0
+            pre_sec = self.soma
+            
+            try:
+                kinetics = data.get('sgc_ampa_kinetics', species='mouse', post_type=post_cell.type,
+                                field=['tau_g', 'amp_g'])
+                dynamics = data.get('sgc_release_dynamics', species='mouse', post_type=post_cell.type,
+                                    field=['F', 'k0', 'kmax', 'kd', 'kf', 'taud', 'tauf', 'dD', 'dF'])
+                
+                # If all dynamics parameters are available, then enable dep_flag
+                kwds['dep_flag'] = 1
+            except KeyError:
+                kwds['dep_flag'] = 0
+            
+            term = synapses.StochasticTerminal(pre_sec, post_cell, nzones=n_rsites, 
+                                delay=delay, spike_source=self.spike_source, **kwds)
+            term.set_params(**kinetics)
+            term.set_params(**dynamics)
+            
+            return term
+        else:
+            raise ValueError("Unsupported terminal type %s" % term_type)
+
+    def make_psd(self, terminal, psd_type, **kwds):
         """
-        Create a PSD suitable for synaptic input from pre_sec.
-        This routine is a placeholder and should be overridden in the specific
-        cell class with code that performs the required actions for that class.
+        Make a mechanism in the postsynaptic cell that will respond to
+        neurotransmitter release from the presynaptic terminal.        
         
         Parameters
         ----------
-        terminal : the terminal that connects to the PSD (required)
-        
-        \**kwds : parameters passed to the terminal
+        terminal : Terminal
+            The presynaptic Terminal that will provide input to this PSD.
+        psd_type : 'simple' or 'multisite'
+            A 'simple' psd responds directly to presynaptic release by creating
+            a double-exponential conductance waveform (NEURON's Exp2Syn). A
+            multisite PSD may have multiple postsynaptic densities, each with
+            independent, biophysically detailed receptor mechanisms.
+        postsite : (section_name, location)
+            Specifies the location to insert the postsynaptic receptor mechanism.
+            By default, the center of the soma is used.
+        kwds: dictionary of options. 
+            AMPAScale : float to scale the AMPA currents
+            NMDAScale : float to scale the NMDA currents
         
         """
-        pre_cell = terminal.cell
-        raise NotImplementedError("Cannot make PSD connecting %s => %s" %
-                                  (pre_cell.__class__.__name__, 
-                                   self.__class__.__name__))
+        # Select location for postsynaptic mechanisms
+        if 'postsite' in kwds:
+            postsite = kwds['postsite']
+            loc = postsite[1]  # where on the section?
+            uname = 'sections[%d]' % postsite[0]  # make a name to look up the neuron section object
+            post_sec = self.hr.get_section(uname)  # Tell us where to put the synapse.
+        else:
+            loc = 0.5
+            post_sec = self.soma
+        
+        if psd_type == 'simple':
+            weight = data.get('synapse_properties', species=self.species,
+                pre_type=terminal.cell.type, post_type=self.type, field='weight')
+            return self.make_exp2_psd(post_sec, terminal, weight=weight, loc=loc)
+        elif psd_type == 'multisite':
+            data_keys = {'sepcies': self.species, 'pre_type': terminal.cell.type, 'post_type': self.type}
+            mech_type = data.get('synapse_properties', field='receptor_type', **data_keys)
+            
+            if mech_type == 'glu':
+                return self.make_glu_psd(post_sec, terminal, loc=loc, data_keys=keys)
+            elif mech_type.startswith('gly'):
+                return self.make_gly_psd(post_sec, terminal, type=mech_type, loc=loc, data_keys=keys)
+            else:
+                raise TypeError('Unsupported PSD mechanism "%s"' % mech_type)
+        else:
+            raise ValueError("Unsupported psd type %s" % psd_type)
 
-    def make_glu_psd(self, post_sec, terminal, AMPA_gmax, NMDA_gmax, **kwds):
-        # Get AMPAR kinetic constants from database 
-        params = data.get('sgc_ampa_kinetics', species=self.species, post_type=self.type,
-                            field=['Ro1', 'Ro2', 'Rc1', 'Rc2', 'PA'])
+
+
+    def make_glu_psd(self, post_sec, terminal, loc, data_keys, **kwds):
+        # Get kinetic constants from database 
+        self.AMPAR_gmax = data.get('synapse_properties', field='AMPAR_gmax', **data_keys)*1e3
+        self.NMDAR_gmax = data.get('synapse_properties', field='NMDAR_gmax', **data_keys)*1e3
+        self.Pr = data.get('synapse_properties', field='Pr', **data_keys)
+        
+        # adjust gmax to correct for initial Pr
+        self.AMPAR_gmax = self.AMPAR_gmax/self.Pr
+        self.NMDAR_gmax = self.NMDAR_gmax/self.Pr
+        
+        # allow caller to scale conductances (normally, this should not be done!)
+        if 'AMPAScale' in kwds:
+            self.AMPAR_gmax = self.AMPAR_gmax * kwds['AMPAScale']  # allow scaling of AMPA conductances
+        if 'NMDAScale' in kwds:
+            self.NMDAR_gmax = self.NMDAR_gmax * kwds['NMDAScale']  # and NMDA... 
+        
+        params = data.get('sgc_ampa_kinetics', field=['Ro1', 'Ro2', 'Rc1', 'Rc2', 'PA'], **data_keys)
         
         return synapses.GluPSD(post_sec, terminal,
                                 ampa_gmax=AMPA_gmax,
@@ -369,14 +453,10 @@ class Cell(object):
                                     PA=params['PA']),
                                 **kwds)
 
-    def make_gly_psd(self, post_sec, terminal, type, **kwds):
+    def make_gly_psd(self, post_sec, terminal, type, data_keys, **kwds):
         # Get GLY kinetic constants from database 
-        params = data.get('gly_kinetics', species=self.species, post_type=self.type,
-                            field=['KU', 'KV', 'XMax'])
-        psd = synapses.GlyPSD(post_sec, terminal,
-                                psdType=type,
-                                **kwds)
-        return psd
+        params = data.get('gly_kinetics',  field=['KU', 'KV', 'XMax'], **data_keys)
+        return synapses.GlyPSD(post_sec, terminal, psdType=type, **kwds)
 
     def make_exp2_psd(self, post_sec, terminal, weight=0.01, loc=0.5):
         return synapses.Exp2PSD(post_sec, terminal, weight=weight, loc=loc)
